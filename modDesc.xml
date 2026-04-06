@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8" standalone="no"?>
 <modDesc descVersion="107">
     <author>Ritter</author>
-    <version>0.0.1.0</version>
+    <version>0.0.2.0</version>
     <title>
         <en>Adjust Implement Speed</en>
     </title>
@@ -13,8 +13,10 @@ Note: This is a proof of concept experiment. Features and keybindings may change
 
 Features:
 - Increase or decrease implement working speed in 1 km/h steps (RightShift+1/2)
+- Reset speed and antigravity to defaults (RightShift+3)
 - Toggle antigravity mode to bypass physics-based speed penalties (RightShift+0)
 - Status line in F1 help panel shows current working speed and antigravity state
+- Respects player's unit preference (km/h or mph)
 - Keybindings appear automatically when vehicle has speed-limited implements attached
 - Works while AI worker is driving
 - Adjusts all attached implements simultaneously
@@ -29,11 +31,16 @@ Usage:
 Enter a vehicle with implements attached. Keybindings appear in the F1 help menu.
 RightShift+1: Increase working speed
 RightShift+2: Decrease working speed
+RightShift+3: Reset speed and antigravity to defaults
 RightShift+0: Toggle antigravity mode
 
 Source code, documentation, and issue tracker: https://github.com/rittermod/FS25_AdjustImplementSpeed
 
 Changelog:
+0.0.2.0 (Experiment):
+- Added reset keybind (RightShift+3) to restore default working speed and disable antigravity
+- Fixed speed display to respect player's unit preference (km/h or mph)
+
 0.0.1.0 (Experiment):
 - Added dynamic working speed adjustment for attached implements (RightShift+1/2)
 - Added antigravity mode to bypass physics-based speed penalties (RightShift+0)
@@ -60,7 +67,7 @@ Changelog:
             <en>Decrease working speed</en>
         </text>
         <text name="ais_speedNotification">
-            <en>Working speed: %d km/h</en>
+            <en>Working speed: %d %s</en>
         </text>
         <text name="action_aisAntigravityEnable">
             <en>Enable antigravity</en>
@@ -78,7 +85,13 @@ Changelog:
             <en>Antigravity disabled</en>
         </text>
         <text name="ais_statusLine">
-            <en>Working speed: %d km/h</en>
+            <en>Working speed: %d %s</en>
+        </text>
+        <text name="action_aisSpeedReset">
+            <en>Reset speed</en>
+        </text>
+        <text name="input_ADJUST_IMPLEMENT_SPEED_RESET">
+            <en>Reset speed</en>
         </text>
     </l10n>
 
@@ -90,6 +103,7 @@ Changelog:
         <action name="ADJUST_IMPLEMENT_SPEED_UP"/>
         <action name="ADJUST_IMPLEMENT_SPEED_DOWN"/>
         <action name="ADJUST_IMPLEMENT_SPEED_ANTIGRAVITY"/>
+        <action name="ADJUST_IMPLEMENT_SPEED_RESET"/>
     </actions>
     <inputBinding>
         <actionBinding action="ADJUST_IMPLEMENT_SPEED_UP">
@@ -100,6 +114,9 @@ Changelog:
         </actionBinding>
         <actionBinding action="ADJUST_IMPLEMENT_SPEED_ANTIGRAVITY">
             <binding device="KB_MOUSE_DEFAULT" input="KEY_rshift KEY_0"/>
+        </actionBinding>
+        <actionBinding action="ADJUST_IMPLEMENT_SPEED_RESET">
+            <binding device="KB_MOUSE_DEFAULT" input="KEY_rshift KEY_3"/>
         </actionBinding>
     </inputBinding>
 </modDesc>

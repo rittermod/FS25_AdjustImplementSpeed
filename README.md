@@ -12,8 +12,10 @@ Tired of implements capping your vehicle at crawling speeds? AdjustImplementSpee
 ## Features
 
 - Increase or decrease implement working speed in 1 km/h steps (RightShift+1 / RightShift+2)
+- Reset speed and antigravity to defaults (RightShift+3)
 - Toggle antigravity mode to bypass physics-based speed penalties (RightShift+0)
 - Status line in F1 help panel shows current working speed and antigravity state
+- Respects player's unit preference (km/h or mph)
 - Keybindings appear automatically when your vehicle has speed-limited implements attached
 - Works while AI worker is driving
 - Adjusts all attached implements simultaneously
@@ -41,6 +43,7 @@ Enter a vehicle with implements attached. The keybindings appear in the F1 help 
 |-----|--------|
 | RightShift + 1 | Increase working speed |
 | RightShift + 2 | Decrease working speed |
+| RightShift + 3 | Reset speed and antigravity to defaults |
 | RightShift + 0 | Toggle antigravity mode |
 
 Speed adjustments are applied in 1 km/h increments. Antigravity mode bypasses power-based speed reductions and implement drag force.

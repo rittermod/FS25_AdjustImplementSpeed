@@ -3,6 +3,7 @@
 
     Vehicle specialization for dynamic working speed adjustment.
     - RShift+1/2: Increase/decrease implement working speed limits
+    - RShift+3: Reset speed and antigravity to defaults
     - RShift+0: Toggle "antigravity" (bypass PowerConsumer speed offsets and drag force)
 
     Registered dynamically into all vehicle types.
@@ -12,7 +13,7 @@
     NOT directly by main.lua. Registration and injection are handled in main.lua.
 
     Author: Ritter
-    Version: 1.0.0.0
+    Version: 0.0.2.0
 ]]
 
 -- Per-mod logger instance with automatic multiplayer context
@@ -24,6 +25,7 @@ RmAdjustImplementSpeed = {}
 -- Module constants
 RmAdjustImplementSpeed.SPEED_STEP = 1               -- km/h per key press
 RmAdjustImplementSpeed.SPEED_FLOOR = 1              -- minimum speed limit in km/h
+RmAdjustImplementSpeed.SPEED_CEILING = 99            -- maximum speed limit in km/h
 RmAdjustImplementSpeed.NOTIFICATION_DURATION = 2000  -- notification display time in ms
 
 -- Spec table name on vehicle: "spec_modName.specShortName"
@@ -47,6 +49,7 @@ function RmAdjustImplementSpeed.registerFunctions(vehicleType)
     SpecializationUtil.registerFunction(vehicleType, "aisGetSpeedLimitedImplements", RmAdjustImplementSpeed.aisGetSpeedLimitedImplements)
     SpecializationUtil.registerFunction(vehicleType, "aisAdjustSpeed", RmAdjustImplementSpeed.aisAdjustSpeed)
     SpecializationUtil.registerFunction(vehicleType, "aisGetEffectiveSpeedLimit", RmAdjustImplementSpeed.aisGetEffectiveSpeedLimit)
+    SpecializationUtil.registerFunction(vehicleType, "aisResetSpeed", RmAdjustImplementSpeed.aisResetSpeed)
     SpecializationUtil.registerFunction(vehicleType, "aisIsAntigravityEnabled", RmAdjustImplementSpeed.aisIsAntigravityEnabled)
     SpecializationUtil.registerFunction(vehicleType, "aisSetAntigravity", RmAdjustImplementSpeed.aisSetAntigravity)
 end
@@ -190,6 +193,22 @@ function RmAdjustImplementSpeed:onRegisterActionEvents(isActiveForInput, isActiv
         g_inputBinding:setActionEventText(actionEventId, antigravityText)
         spec.antigravityActionEventId = actionEventId
     end
+
+    -- Speed reset action
+    _, actionEventId = self:addActionEvent(
+        spec.actionEvents,
+        InputAction.ADJUST_IMPLEMENT_SPEED_RESET,
+        self,
+        RmAdjustImplementSpeed.onSpeedReset,
+        false, -- triggerUp
+        true,  -- triggerDown
+        false, -- triggerAlways
+        true   -- startActive
+    )
+    if actionEventId ~= nil then
+        g_inputBinding:setActionEventTextPriority(actionEventId, GS_PRIO_NORMAL)
+        g_inputBinding:setActionEventText(actionEventId, g_i18n:getText("action_aisSpeedReset"))
+    end
 end
 
 ---Callback for speed up action
@@ -220,6 +239,15 @@ function RmAdjustImplementSpeed:onAntigravityToggle(actionName, inputValue, call
     self:aisSetAntigravity(not currentlyEnabled)
 end
 
+---Callback for speed reset action
+---@param actionName string
+---@param inputValue number
+---@param callbackState any
+---@param isAnalog boolean
+function RmAdjustImplementSpeed:onSpeedReset(actionName, inputValue, callbackState, isAnalog)
+    self:aisResetSpeed()
+end
+
 -- ============================================================================
 -- HUD STATUS LINE
 -- ============================================================================
@@ -237,7 +265,9 @@ function RmAdjustImplementSpeed:onDraw(dt)
     if speed == nil then
         return
     end
-    local text = string.format(g_i18n:getText("ais_statusLine"), speed)
+    local displaySpeed = math.max(1, math.floor(g_i18n:getSpeed(speed) + 0.5))
+    local unit = g_i18n:getSpeedMeasuringUnit()
+    local text = string.format(g_i18n:getText("ais_statusLine"), displaySpeed, unit)
     if self:aisIsAntigravityEnabled() then
         text = text .. " | AG"
     end
@@ -313,11 +343,46 @@ function RmAdjustImplementSpeed:aisAdjustSpeed(delta)
         local adjustedSpeed = impl.speedLimit + newDelta
         if adjustedSpeed < RmAdjustImplementSpeed.SPEED_FLOOR then
             newDelta = RmAdjustImplementSpeed.SPEED_FLOOR - impl.speedLimit
+        elseif adjustedSpeed > RmAdjustImplementSpeed.SPEED_CEILING then
+            newDelta = RmAdjustImplementSpeed.SPEED_CEILING - impl.speedLimit
         end
 
         impl._aisSpeedDelta = newDelta
         Log:debug("ADJUST: %s delta=%d base=%d effective=%d",
             impl.configFileName or "unknown", newDelta, impl.speedLimit, impl.speedLimit + newDelta)
+    end
+end
+
+---Reset all attached implements to default speed and disable antigravity.
+---Clears _aisSpeedDelta to 0 on all implements and calls aisSetAntigravity(false)
+---if antigravity is currently active.
+function RmAdjustImplementSpeed:aisResetSpeed()
+    Log:trace(">>> aisResetSpeed()")
+
+    local implements = self:aisGetSpeedLimitedImplements()
+    if #implements == 0 then
+        Log:debug("RESET: no speed-limited implements")
+        return
+    end
+
+    local changed = false
+    for _, impl in ipairs(implements) do
+        local oldDelta = impl._aisSpeedDelta or 0
+        impl._aisSpeedDelta = 0
+        if oldDelta ~= 0 then
+            changed = true
+            Log:debug("RESET: %s delta %d -> 0, base=%d",
+                impl.configFileName or "unknown", oldDelta, impl.speedLimit)
+        end
+    end
+
+    if self:aisIsAntigravityEnabled() then
+        self:aisSetAntigravity(false)
+        changed = true
+    end
+
+    if changed then
+        Log:info("Speed and antigravity reset to defaults")
     end
 end
 
@@ -339,7 +404,7 @@ function RmAdjustImplementSpeed:aisGetEffectiveSpeedLimit()
     if minSpeed == math.huge then
         return nil
     end
-    return math.max(math.floor(minSpeed), RmAdjustImplementSpeed.SPEED_FLOOR)
+    return math.min(math.max(math.floor(minSpeed), RmAdjustImplementSpeed.SPEED_FLOOR), RmAdjustImplementSpeed.SPEED_CEILING)
 end
 
 -- ============================================================================
@@ -424,13 +489,13 @@ function RmAdjustImplementSpeed:getRawSpeedLimit(superFunc)
         -- Antigravity mode: bypass PowerConsumer offsets by using raw speedLimit
         -- instead of superFunc (which includes the PowerConsumer override chain)
         local limit = self.speedLimit + delta
-        return math.max(limit, RmAdjustImplementSpeed.SPEED_FLOOR)
+        return math.min(math.max(limit, RmAdjustImplementSpeed.SPEED_FLOOR), RmAdjustImplementSpeed.SPEED_CEILING)
     end
 
     -- Normal mode: respect the full override chain (PowerConsumer, Sprayer, etc.)
     local limit = superFunc(self)
     if delta ~= 0 then
-        limit = math.max(limit + delta, RmAdjustImplementSpeed.SPEED_FLOOR)
+        limit = math.min(math.max(limit + delta, RmAdjustImplementSpeed.SPEED_FLOOR), RmAdjustImplementSpeed.SPEED_CEILING)
     end
     return limit
 end
